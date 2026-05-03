@@ -80,8 +80,91 @@ function makeRuneTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+function makeSigilTexture(): THREE.CanvasTexture {
+  const w = 256;
+  const h = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = h * 0.38;
+  const variant = Math.floor(Math.random() * 4);
+
+  if (variant === 0) {
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i < 5; i++) {
+      const a = Math.PI / 2 + (i / 5) * Math.PI * 2;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    ctx.lineTo(pts[2][0], pts[2][1]);
+    ctx.lineTo(pts[4][0], pts[4][1]);
+    ctx.lineTo(pts[1][0], pts[1][1]);
+    ctx.lineTo(pts[3][0], pts[3][1]);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.05, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (variant === 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.9, cy - r * 0.6);
+    ctx.lineTo(cx + r * 0.9, cy - r * 0.6);
+    ctx.lineTo(cx, cy + r);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.55, cy);
+    ctx.lineTo(cx + r * 0.55, cy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy + r * 0.35, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (variant === 2) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx, cy + r);
+    ctx.moveTo(cx - r * 0.55, cy + r * 0.45);
+    ctx.lineTo(cx + r * 0.55, cy + r * 0.45);
+    ctx.moveTo(cx - r * 0.3, cy - r * 0.2);
+    ctx.lineTo(cx + r * 0.3, cy - r * 0.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy - r * 1.1, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.arc(cx, cy - r * 0.2, r * 0.85, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.6, cy - r * 0.2);
+    ctx.lineTo(cx + r * 0.6, cy - r * 0.2);
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  return tex;
+}
+
 type AltarRefs = {
   pool: THREE.MeshStandardMaterial;
+  eye: THREE.MeshStandardMaterial;
+  sigils: THREE.MeshBasicMaterial[];
+  drip: THREE.MeshBasicMaterial;
 };
 
 function createAltar(scene: THREE.Scene): AltarRefs {
@@ -90,8 +173,14 @@ function createAltar(scene: THREE.Scene): AltarRefs {
   const pool = new THREE.MeshStandardMaterial({
     color: 0x300808,
     emissive: 0xff1a08,
-    emissiveIntensity: 1.6,
-    roughness: 0.7,
+    emissiveIntensity: 2.4,
+    roughness: 0.65,
+  });
+  const eye = new THREE.MeshStandardMaterial({
+    color: 0x080000,
+    emissive: 0xff1a08,
+    emissiveIntensity: 3.5,
+    roughness: 0.35,
   });
 
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 1.9), stone);
@@ -110,44 +199,82 @@ function createAltar(scene: THREE.Scene): AltarRefs {
   slab.castShadow = true;
   scene.add(slab);
 
-  const poolMesh = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.6), pool);
-  poolMesh.position.y = 1.07;
+  const poolMesh = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.08, 0.7), pool);
+  poolMesh.position.y = 1.08;
   scene.add(poolMesh);
 
-  const cornerSpike = new THREE.ConeGeometry(0.13, 0.85, 6);
+  const sigils: THREE.MeshBasicMaterial[] = [];
+  const sigilSides = [
+    { x: 0, z: 0.961, rotY: 0 },
+    { x: 0, z: -0.961, rotY: Math.PI },
+    { x: 0.961, z: 0, rotY: Math.PI / 2 },
+    { x: -0.961, z: 0, rotY: -Math.PI / 2 },
+  ];
+  for (const s of sigilSides) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: makeSigilTexture(),
+      color: 0xff3818,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    sigils.push(mat);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 0.5), mat);
+    plane.position.set(s.x, 0.32, s.z);
+    plane.rotation.y = s.rotY;
+    scene.add(plane);
+  }
+
+  const drip = new THREE.MeshBasicMaterial({
+    color: 0xc01818,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  });
+  const dripPositions: Array<[number, number]> = [
+    [-0.78, 0.16],
+    [-0.42, 0.34],
+    [-0.12, 0.22],
+    [0.18, 0.4],
+    [0.5, 0.27],
+    [0.82, 0.18],
+  ];
+  for (const [x, len] of dripPositions) {
+    const dripMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.045, len), drip);
+    dripMesh.position.set(x, 0.6 - len / 2, 0.972);
+    scene.add(dripMesh);
+  }
+
+  const eyeGeom = new THREE.SphereGeometry(0.075, 16, 12);
+  for (const x of [-0.22, 0.22]) {
+    const e = new THREE.Mesh(eyeGeom, eye);
+    e.position.set(x, 1.42, 0.05);
+    scene.add(e);
+  }
+
+  const cornerSpikeGeom = new THREE.ConeGeometry(0.14, 1.1, 6);
   for (const [x, z] of [
     [-0.9, -0.9],
     [0.9, -0.9],
     [-0.9, 0.9],
     [0.9, 0.9],
   ]) {
-    const s = new THREE.Mesh(cornerSpike, iron);
-    s.position.set(x, 1.03, z);
+    const s = new THREE.Mesh(cornerSpikeGeom, iron);
+    s.position.set(x, 1.15, z);
+    s.rotation.set(Math.sign(z) * 0.12, 0, -Math.sign(x) * 0.12);
     s.castShadow = true;
     scene.add(s);
   }
 
-  const tallSpike = new THREE.ConeGeometry(0.085, 1.6, 6);
+  const tallSpikeGeom = new THREE.ConeGeometry(0.09, 2.0, 6);
   for (const z of [-0.55, 0.55]) {
-    const s = new THREE.Mesh(tallSpike, iron);
-    s.position.set(0, 1.86, z);
+    const s = new THREE.Mesh(tallSpikeGeom, iron);
+    s.position.set(0, 2.0, z);
     s.castShadow = true;
     scene.add(s);
   }
 
-  const horns = new THREE.ConeGeometry(0.06, 0.55, 6);
-  for (const [x, z, ax] of [
-    [-0.55, 0, 0.4],
-    [0.55, 0, -0.4],
-  ] as Array<[number, number, number]>) {
-    const s = new THREE.Mesh(horns, iron);
-    s.position.set(x, 1.32, z);
-    s.rotation.z = ax;
-    s.castShadow = true;
-    scene.add(s);
-  }
-
-  return { pool };
+  return { pool, eye, sigils, drip };
 }
 
 export function createCompound(scene: THREE.Scene) {
@@ -206,11 +333,28 @@ export function createCompound(scene: THREE.Scene) {
   return {
     update() {
       const t = performance.now() / 1000;
+
       for (let i = 0; i < runeMaterials.length; i++) {
         const phase = i * 0.45;
         runeMaterials[i].opacity = 0.75 + Math.sin(t * 1.6 + phase) * 0.25;
       }
-      altar.pool.emissiveIntensity = 1.4 + Math.sin(t * 2.4) * 0.4;
+
+      altar.pool.emissiveIntensity =
+        2.0 + Math.sin(t * 2.4) * 0.7 + Math.sin(t * 7.3) * 0.15;
+
+      const blinkPhase = (t * 0.27) % 1;
+      const blink = blinkPhase < 0.05 ? (1 - blinkPhase / 0.05) * 3 : 0;
+      altar.eye.emissiveIntensity = Math.max(
+        0.3,
+        3.4 + Math.sin(t * 1.1) * 0.5 - blink,
+      );
+
+      for (let i = 0; i < altar.sigils.length; i++) {
+        const phase = i * 0.7 + 1.2;
+        altar.sigils[i].opacity = 0.55 + Math.sin(t * 1.2 + phase) * 0.3;
+      }
+
+      altar.drip.opacity = 0.82 + Math.sin(t * 0.9) * 0.1;
     },
   };
 }
